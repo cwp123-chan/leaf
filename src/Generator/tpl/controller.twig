@@ -1,0 +1,184 @@
+<?php
+
+namespace {{ bundleName }}\Controller;
+
+use Carbon\Carbon;
+use {{ entityNamespace }}{{ entityName }};
+use Leaf\Application;
+use Leaf\DB;
+use Leaf\Request;
+use Leaf\Session;
+use Leaf\Validator;
+use Leaf\View;
+use Leaf\Redirect;
+
+/**
+ * {{ tableComment }}管理
+ * @author  curd generator
+ * @since   1.0
+ */
+class {{ entityName }}Controller
+{
+    /**
+     * 列表
+     * @Route {{ bundleMiddleName }}{{ middleName }}
+     */
+    public function index(Request $request)
+    {
+        //查询条件
+        $condition = [];
+        $params = [];
+        $search = $request->get('{{ entityName }}');
+
+        if (!empty($search['id'])) {
+            $condition[] = 'id = :id';
+            $params[':id'] = $search['id'];
+        }
+
+        //if (!empty($search['name'])) {
+        //    $condition[] = 'name like :name';
+        //    $params[':name'] = '%' . trim($search['name']) . '%';
+        //}
+
+        $sortBy = $request->get('sortby', '-id');
+        if (!in_array(ltrim($sortBy, '-'), ['id'])) {
+            Session::setFlash('message', '指定字段不支持排序');
+            return Redirect::back();
+        }
+
+        //数据
+        $dataProvider = {{ entityName }}::where(implode(' and ', $condition), $params)
+            ->orderBy($sortBy)
+            ->paginate();
+
+        //视图
+        return View::render('@{{ bundleName }}/{{ middleName }}/index.twig', [
+            'dataProvider' => $dataProvider,
+        ]);
+    }
+
+    /**
+     * 新增
+     * @Route {{ bundleMiddleName }}{{ middleName }}/create
+     */
+    public function create(Request $request)
+    {
+        $entity = new {{ entityName }}();
+        $entity->loadDefaultValues();
+
+        //保存
+        $error = '';
+        if ($request->isMethod('POST')) {
+
+            $data = $request->get('{{ entityName }}');
+
+            if (Validator::validate($data, self::getRules('create'), {{ entityName }}::labels())) {
+
+                $data['created_at'] = $data['updated_at'] = Carbon::now();
+
+                if ({{ entityName }}::insert($data)) {
+                    Session::setFlash('message', '添加成功');
+                    return Redirect::to('{{ bundleMiddleName }}{{ middleName }}');
+                } else {
+                    $error = '系统错误';
+                }
+            } else {
+                $error = Validator::getFirstError();
+            }
+        }
+
+        //视图
+        return View::render('@{{ bundleName }}/{{ middleName }}/create.twig', [
+            'entity' => $entity,
+            'error' => $error,
+        ]);
+    }
+
+    /**
+     * 更新
+     * @Route {{ bundleMiddleName }}{{ middleName }}/update
+     */
+    public function update(Request $request, Application $app)
+    {
+        //查询
+        $entity = {{ entityName }}::findByPkOrFail($request->get('id'));
+
+        //保存
+        $error = '';
+        if ($request->isMethod('POST')) {
+
+            $data = $request->get('{{ entityName }}');
+
+            //验证
+            if (Validator::validate($data, self::getRules('update'))) {
+
+                $data['updated_at'] = Carbon::now();
+
+                //更新
+                if ({{ entityName }}::wherePk($entity->id)->update($data)) {
+                    Session::setFlash('message', '修改成功');
+                    return Redirect::to($request->get('returnUrl', '{{ bundleMiddleName }}{{ middleName }}'));
+                } else {
+                    $error = '系统错误';
+                }
+
+            } else {
+                $error = Validator::getFirstError();
+            }
+        }
+
+        //视图
+        return View::render('@{{ bundleName }}/{{ middleName }}/update.twig', [
+            'entity' => $entity,
+            'error' => $error,
+        ]);
+    }
+
+    /**
+     * 删除
+     * @Route {{ bundleMiddleName }}{{ middleName }}/delete
+     * @Method post
+     */
+    public function delete(Request $request)
+    {
+        $result = {{ entityName }}::wherePk($request->get('id'))->delete();
+
+        if ($result) {
+            Session::setFlash('message', '删除成功');
+        } else {
+            Session::setFlash('message', '删除失败');
+        }
+
+        return Redirect::back();
+    }
+
+//    /**
+//     * 详情
+//     * @Route {{ bundleMiddleName }}{{ middleName }}/view
+//     */
+//    public function view(Request $request, Application $app)
+//    {
+//        //查询
+//        $entity = {{ entityName }}::findByPkOrFail($request->get('id'));
+//
+//        //视图
+//        return View::render('@{{ bundleName }}/{{ middleName }}/view.twig', [
+//            'entity' => $entity,
+//        ]);
+//    }
+
+    /**
+     * 验证规则
+     * @param string $scene create|update
+     * @return array
+     */
+    protected function getRules($scene)
+    {
+        $rules = [
+            [[{% for key,value in attributes  %}'{{ key }}',{% endfor %}], 'safe'],
+        ];
+
+        return $rules;
+    }
+
+}
